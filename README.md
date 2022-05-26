@@ -1,6 +1,6 @@
 # EncoderExperiments
  
-Test for logistic regression and LGBM for binary classification with multiple encoders.
+Test for LGBM for binary classification with multiple encoders.
 The expected result is for WOEEncoder to perform better (at least on average). 
  
 Datasets used in the analysis are 
@@ -50,7 +50,7 @@ This consists of renaming the columns adn in particular renaming the target colu
 'target'.
 
 The datasets were resampled down to at most 10k entries to ensure fast execution.
-The model was not tuned, also to save runtime.  
+The model was not tuned for the same reason.  
 
 ## For reproducibility
 The datasets should be in a directory called "data" inside of EncoderExperiments. 

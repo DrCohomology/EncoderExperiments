@@ -87,30 +87,33 @@ else:
     raise Exception(
         """The correct path could not be found. Ensure that the current working directory is EncoderExperiments""")
 
-dataset = "kick"
-df = pd.read_csv(f"./data/{dataset}.csv")
-df = df.sample(min(10000, len(df)))
+dataset = "telecom"
+# df = pd.read_csv(f"./data/{dataset}.csv")
+df = pd.read_csv(f"C:/Data/{dataset}.csv")
+df = df.sample(min(10000, len(df)), random_state=1442)
 
 X, y = pre2process(df)
+X.reset_index(drop=True, inplace=True)
 
 # encoders considered in the analysis
 encoders = [
-    # enc.BackwardDifferenceEncoder,
-    enc.BinaryEncoder, # as placeholder for OHE
-    enc.CatBoostEncoder,
-    # enc.CountEncoder, # does not produce a result
-    # enc.GLMMEncoder, # orders of magnitude too slow
-    # enc.HashingEncoder, # LogisticRegression does not converge
-    # enc.HelmertEncoder,
-    # enc.JamesSteinEncoder,
-    # enc.LeaveOneOutEncoder,
-    # enc.MEstimateEncoder,
-    # enc.OneHotEncoder, # too memory inefficient
-    # enc.PolynomialEncoder,
-    # enc.SumEncoder,
-    # enc.WOEEncoder,
-    enc.SmoothedTargetEncoder, # default weight 20
-    enc.TargetEncoder,
+    # enc.BackwardDifferenceEncoder(),
+    enc.BinaryEncoder(), # instead of OHE
+    enc.CatBoostEncoder(),
+    # enc.CountEncoder(), # does not produce a result
+    # enc.GLMMEncoder(), # orders of magnitude too slow
+    # enc.HashingEncoder(), # LogisticRegression does not converge
+    # enc.HelmertEncoder(),
+    # enc.JamesSteinEncoder(),
+    enc.LeaveOneOutEncoder(),
+    # enc.MEstimateEncoder(),
+    # enc.OneHotEncoder(), # too memory inefficient
+    # enc.PolynomialEncoder(),
+    # enc.SumEncoder(),
+    # enc.WOEEncoder(),
+    enc.SmoothedTargetEncoder(), # default weight 10
+    enc.TargetEncoder(),
+    enc.EncoderWrapper(enc.OOFTE), 
 ]
 
 # quality metrics considered - for binary classification
@@ -137,17 +140,17 @@ for encoder in tqdm(encoders):
     CT = ColumnTransformer([
         (
             "encoder",
-            encoder(),
-            [col for col in X.columns if X[col].dtype not in ("float", "int")]
+            encoder,
+            [col for col in X.columns if X[col].dtype not in ("float64", "int64")]
         ),
         (
             "scaler",
             RobustScaler(),
-            [col for col in X.columns if X[col].dtype in ("float", "int")]
+            [col for col in X.columns if X[col].dtype in ("float64", "int64")]
         ),
 
     ])
-
+    
     PP = Pipeline([
         ("preproc", CT),
         ("model", model)
@@ -165,7 +168,10 @@ for encoder in tqdm(encoders):
         out = None
         exceptions.append(e)
     finally:
-        results[encoder.__name__] = out
+        try:
+            results[encoder.__name__] = out
+        except AttributeError:
+            results[str(encoder)] = out
 
 # ---- Reorganize results into a df
 

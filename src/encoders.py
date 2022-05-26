@@ -6,6 +6,7 @@ Created on Mon Feb 21 16:59:19 2022
 """
 
 import functools
+import math
 import numpy as np
 import pandas as pd
 
@@ -27,6 +28,7 @@ from category_encoders import (
 )
 
 from collections import defaultdict
+from inspect import signature
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.model_selection import StratifiedKFold
 
@@ -136,7 +138,7 @@ class SmoothedTargetEncoder(Encoder):
 
     """
 
-    def __init__(self, default=-1, w=20, **kwargs):
+    def __init__(self, default=-1, w=10, **kwargs):
         super().__init__(default=default, **kwargs)
         self.w = w
 
@@ -157,5 +159,122 @@ class SmoothedTargetEncoder(Encoder):
         X = X.copy()
         for col in self.cols:
             X[col] = X[col].apply(lambda cat: self.encoding[col][cat])
+        return X
+
+class EncoderWrapper(Encoder):
+    
+    def __init__(self, encoder_class):
+        self.encoder_class = encoder_class
+        # Can the encoder handle a single column?
+        self.singlecol = False
+        if "col" in signature(self.encoder_class).parameters:
+            self.singlecol = True
+        self.encoders = {}
+        
+    def fit(self, X: pd.DataFrame, y, **kwargs):
+        self.cols = X.columns
+        X = X.copy().reset_index(drop=True)
+        
+        if self.singlecol:
+            for col in self.cols:
+                self.encoders[col] = self.encoder_class(col, **kwargs).fit(X, y)
+        else:
+            X = self.encoder_class(**kwargs).fit_transform(X, y)
+        return self
+        
+    def fit_transform(self, X: pd.DataFrame, y, **kwargs):
+        self.cols = X.columns
+        X = X.copy().reset_index(drop=True)
+        
+        if self.singlecol:
+            for col in self.cols:
+                self.encoders[col] = self.encoder_class(col, **kwargs).fit(X, y)
+                X = self.encoders[col].transform(X).drop(columns=col)
+        else:
+            X = self.encoder_class(**kwargs).fit_transform(X, y)
+        return X
+    
+    def transform(self, X: pd.DataFrame):
+        X = X.copy()
+        if self.singlecol: 
+            for col in self.cols:
+                X = self.encoders[col].transform(X).drop(columns=col)
+        else:
+            raise Exception('invalid')
+        return X
+
+    def __str__(self):
+        return f"{self.encoder_class.__name__}()"
+
+class OOFTE(BaseEstimator, TransformerMixin):
+    def __init__(self, col, default=-1, random_state=1444):
+        self.col = col
+        self.colname = f"{self.col}_TE"
+        self._d = {}
+        self.random_state = random_state
+        self.kfold = StratifiedKFold(n_splits=10, random_state=self.random_state, shuffle=True)
+        self.default = -1
+    
+    def fit(self, X, y):
+        X = X.reset_index(drop=True)
+        new_x = X[[self.col]].copy().reset_index(drop=True)
+        X.loc[:, self.colname] = 0
+        for n_fold, (trn_idx, val_idx) in enumerate(self.kfold.split(new_x, y)):
+            trn_x = new_x.iloc[trn_idx].copy()
+            trn_x.loc[:, 'target'] = y.iloc[trn_idx]
+            val_x = new_x.iloc[val_idx].copy()
+            val_x.loc[:, 'target'] = y.iloc[val_idx]
+            val = trn_x.groupby(self.col)['target'].mean().to_dict()
+            # with default and other error handling
+            val = defaultdict(lambda: -1, {
+                k : v if not math.isnan(v) else -1 for k, v in val.items()  
+            })
+            self._d[n_fold] = val
+        return self
+
+    def fit_transform(self, X, y):
+        X = X.reset_index(drop=True)
+        new_x = X[[self.col]].copy().reset_index(drop=True)
+        X.loc[:, self.colname] = 0
+        for n_fold, (trn_idx, val_idx) in enumerate(self.kfold.split(new_x, y)):
+            trn_x = new_x.iloc[trn_idx].copy()
+            trn_x.loc[:, 'target'] = y.iloc[trn_idx]
+            val_x = new_x.iloc[val_idx].copy()
+            val_x.loc[:, 'target'] = y.iloc[val_idx]
+            val = trn_x.groupby(self.col)['target'].mean().to_dict()
+            # with default and other error handling
+            val = defaultdict(lambda: -1, {
+                k : v if not math.isnan(v) else -1 for k, v in val.items()  
+            })
+            self._d[n_fold] = val
+            X.loc[val_idx, self.colname] = X.loc[val_idx, self.col].map(val)
+        return X
+
+    def transform(self, X):
+        X.loc[:, self.colname] = 0
+        for key, val in self._d.items():
+            X.loc[:, self.colname] += X[self.col].map(val)
+
+        X.loc[:, self.colname] /= key + 1
+        return X
+
+
+# Already implemented in category_encoders.LeaveOneOutEncoder
+class LOOTE:
+    def __init__(self, col):
+        self.col = col
+        self.colname = f"{self.col}_TE"
+
+    def fit_transform(self, X, y):
+        new_x = X[[self.col]].copy()
+        new_x.loc[:, 'target'] = y
+        a = (new_x.groupby(self.col)['target'].transform(np.sum) - y)\
+            / new_x.groupby(self.col)['target'].transform(len)
+        X.loc[:, self.colname] = a
+        self._d = X.groupby(self.col)[self.colname].mean()
+        return X
+
+    def transform(self, X):
+        X.loc[:, self.colname] = X[self.col].map(self._d)
         return X
 
