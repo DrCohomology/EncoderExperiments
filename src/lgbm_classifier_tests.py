@@ -88,8 +88,7 @@ else:
         """The correct path could not be found. Ensure that the current working directory is EncoderExperiments""")
 
 dataset = "telecom"
-# df = pd.read_csv(f"./data/{dataset}.csv")
-df = pd.read_csv(f"C:/Data/{dataset}.csv")
+df = pd.read_csv(f"./data/{dataset}.csv")
 df = df.sample(min(10000, len(df)), random_state=1442)
 
 X, y = pre2process(df)
