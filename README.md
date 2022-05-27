@@ -24,10 +24,10 @@ This consists of renaming the columns and in particular renaming the target colu
 'target'.
 
 ## Design notes 
-Missing values and attributes were dropped.\\
-Numerical variables were rescaled with `sklearn.preprocessing.RobustScaler`.\\
-The datasets were resampled down to at most 10k entries to ensure fast execution.\\
-The model was not tuned for the same reason. 
+- Missing values and attributes were dropped.
+- Numerical variables were rescaled with `sklearn.preprocessing.RobustScaler`.
+- The datasets were resampled down to at most 10k entries to ensure fast execution.
+- The model was not tuned for the same reason. 
 
 ## For reproducibility
 The datasets should be in a directory called "data" inside of EncoderExperiments. 
