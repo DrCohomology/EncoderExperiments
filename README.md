@@ -1,7 +1,7 @@
 # EncoderExperiments
  
 Test for LGBM for binary classification with multiple encoders.
-The expected result is for WOEEncoder to perform better (at least on average). 
+The expected result is for OOFTE or CatBoost to perform best (at least on average). 
  
 Datasets used in the analysis are 
 - adult
